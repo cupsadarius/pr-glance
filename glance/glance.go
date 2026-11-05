@@ -31,7 +31,8 @@ type Options struct {
 	StateDir string
 }
 
-// Run shows the pane until the user quits or ctx ends.
+// Run shows the pane until the user quits. ctx bounds the actions the pane
+// starts (browser, zoom); cancelling it does not close the pane.
 func Run(ctx context.Context, o Options) error {
 	if o.Resolver == nil {
 		return errors.New("glance: Options.Resolver is nil")
