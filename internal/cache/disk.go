@@ -1,4 +1,4 @@
-// Package cache persists complete discussions beneath Herdr's state directory.
+// Package cache persists complete discussions beneath the host's state directory.
 package cache
 
 import (

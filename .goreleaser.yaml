@@ -1,19 +1,19 @@
-# GoReleaser configuration for herdr-pr-glance.
+# GoReleaser configuration for pr-glance.
 # Produces four CGO-free archives (darwin/linux x amd64/arm64), each holding the
 # single executable at the archive root, plus a checksums.txt the plugin
 # installer verifies against.
 version: 2
 
-project_name: herdr-pr-glance
+project_name: pr-glance
 
 before:
   hooks:
     - go mod download
 
 builds:
-  - id: herdr-pr-glance
-    main: ./cmd/herdr-pr-glance
-    binary: herdr-pr-glance
+  - id: pr-glance
+    main: ./cmd/pr-glance
+    binary: pr-glance
     env:
       - CGO_ENABLED=0
     goos:
@@ -29,12 +29,12 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
-  - id: herdr-pr-glance
+  - id: pr-glance
     ids:
-      - herdr-pr-glance
+      - pr-glance
     formats:
       - tar.gz
-    # herdr-pr-glance_0.1.0_darwin_arm64.tar.gz
+    # pr-glance_0.1.0_darwin_arm64.tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     wrap_in_directory: false
     # Only the executable ships; scripts/install.sh extracts exactly this member.
@@ -62,6 +62,6 @@ changelog:
 release:
   github:
     owner: cupsadarius
-    name: herdr-pr-glance
+    name: pr-glance
   draft: false
   prerelease: auto

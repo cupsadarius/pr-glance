@@ -1,10 +1,8 @@
-# Glance PR
+# PR Glance
 
-Glance PR is a [Herdr](https://herdr.dev) plugin that shows the GitHub pull
-request for the branch you are working on, in a pane next to your terminal. It
-tracks the working pane in the current tab, resolves its checkout and branch
-with git, and reads PR identity, statistics, CI checks, review decision,
-comments and review threads through your authenticated `gh`. It is read-only
+PR Glance shows the GitHub pull request for a checkout's branch in a terminal
+pane: PR identity, statistics, CI checks, review decision, comments and review
+threads. It reads everything through your authenticated `gh` and is read-only
 against GitHub: it displays data and opens links.
 
 ```text
@@ -37,82 +35,45 @@ and defines no custom palette: green for passed checks, additions and
 approvals, red for failures, deletions and changes requested, yellow for
 pending checks, stale data and rate limits, cyan for authors and file paths.
 
+## Hosts
+
+PR Glance runs on its own, or inside a terminal multiplexer through a wrapper
+that tells it which checkout to show:
+
+- [herdr-pr-glance](https://github.com/cupsadarius/herdr-pr-glance): a Herdr
+  plugin that follows the working pane of the current tab.
+- [rex-pr-glance](https://github.com/cupsadarius/rex-pr-glance): a Rex plugin
+  that follows the focused block of the current window.
+- `pr-glance` (this repository): a standalone binary for one checkout, for any
+  other terminal or multiplexer.
+
+Wrappers import the Go package `github.com/cupsadarius/pr-glance/glance`
+(`glance.Run`, `glance.Checkout`) and the types in `.../model`.
+
 ## Prerequisites
 
-Runtime:
-
-- Herdr 0.8.2 or newer
 - `git`
 - `gh`, authenticated (`gh auth login`)
-- `HERDR_PLUGIN_STATE_DIR`, which Herdr sets for plugin commands. The `view` and
-  `open` subcommands require it and exit with a clear error if it is missing, so
-  run them through Herdr rather than directly. `snapshot --cwd PATH` needs no
-  Herdr environment and works anywhere.
-- `view --cwd PATH` also runs without Herdr: it shows the pull request of that
-  one checkout, for other multiplexers such as Rex. It keeps its cache in
-  `$XDG_STATE_HOME/herdr-pr-glance` (default `~/.local/state/herdr-pr-glance`),
-  and `z` zooms the pane through `rex zoom` when `REX_BLOCK` is set.
-
-Installation needs all of the above — the hook downloads release assets with
-`gh`, so `gh` must already be authenticated — plus a POSIX shell, `tar`, `gzip`
-(GNU tar shells out to it for `-z`) and either `sha256sum` or `shasum`.
-Supported platforms are macOS and Linux on amd64 and arm64.
+- macOS or Linux, amd64 or arm64
 
 ## Install
 
-```sh
-herdr plugin install cupsadarius/herdr-pr-glance
-```
-
-Herdr clones the repository and runs the declared build hook. The hook
-downloads the prebuilt binary for the exact `vVERSION` tag recorded in the
-checkout's `VERSION` file, verifies its SHA-256 against the release checksum
-file, and installs it as `bin/herdr-pr-glance` under the plugin root. No Go
-toolchain is required. The first install needs network access; opening the pane
-never downloads anything. A failed download or checksum mismatch leaves any
-previous binary in place and fails the install. Herdr previews the source and
-the build command and asks for confirmation unless you pass `-y`.
-
-No release has been published yet, so this is the intended install path rather
-than one that has been run end to end.
-
-### Reinstall or pin a version
+Download the archive for your platform from the
+[releases page](https://github.com/cupsadarius/pr-glance/releases) and put
+`pr-glance` on your `PATH`, or build from source:
 
 ```sh
-herdr plugin install cupsadarius/herdr-pr-glance --ref vX.Y.Z
+go install github.com/cupsadarius/pr-glance/cmd/pr-glance@latest
 ```
 
-That installs the exact binary published for that tag. There is no self-updater;
-run the install command again to move to a newer version.
-
-### Build from source
+## Usage
 
 ```sh
-go build -o bin/herdr-pr-glance ./cmd/herdr-pr-glance
-herdr plugin link .
+pr-glance                      # the checkout in the current directory
+pr-glance --cwd PATH           # another checkout
+pr-glance snapshot --cwd PATH  # print one summary as JSON, for diagnosis
+pr-glance version
 ```
-
-`herdr plugin link` does not run the build hook, so build first and rebuild
-after every change.
-
-## Optional keybinding
-
-The plugin never edits your Herdr configuration. Add a binding yourself if you
-want one:
-
-```toml
-[[keys.command]]
-key = "prefix+g"
-type = "plugin_action"
-command = "glance.pr.open"
-```
-
-`glance.pr.open` opens or focuses the Glance pane in the current tab. Glance
-takes the rightmost column of the tab when that column holds a single pane;
-otherwise it splits the tallest pane on the right edge.
-`glance.pr.overlay` shows it as a temporary zoomed overlay instead of a split;
-Herdr's overlay placement restores the previous focus and zoom when the overlay
-closes.
 
 ## Controls
 
@@ -128,7 +89,7 @@ closes.
 | `r` | Refresh the active section, ignoring cache freshness |
 | `o` | Open the selected item's URL, falling back to the PR URL; does nothing on the CI fold row |
 | Click the PR title or number | Open the pull request in the browser |
-| `z` | Toggle pane zoom through Herdr |
+| `z` | Toggle pane zoom, when the host supports it |
 | `?` | Help: the full key list; `?` or Escape closes it |
 | `q`, Escape or `ctrl+c` | Close Glance (Escape closes help first when it is open) |
 
@@ -163,12 +124,10 @@ fall back to plain text.
 
 ### Refresh behaviour
 
-- Local Herdr and git checks — working pane, checkout and branch — run every
-  2 seconds for as long as Glance is open, whether or not its tab is visible,
-  so pane and branch switches show up quickly.
-- The Overview summary is polled from GitHub every 60 seconds, and only while
-  the tab is visible. Polling is suspended while the tab is hidden and resumes,
-  with a freshness check, when it becomes visible again.
+- The checkout and branch are re-read every 2 seconds, so a branch switch shows
+  up quickly.
+- The Overview summary is polled from GitHub every 60 seconds while the host
+  reports the pane as visible. The standalone binary always counts as visible.
 - Comments and Reviews are never fetched automatically. They load when you open
   the section, or when you press `r`.
 - Cached discussions are considered fresh for 5 minutes. Opening a section with
@@ -176,60 +135,20 @@ fall back to plain text.
   while a fetch runs.
 - Failures keep the previous data for the same PR and mark it stale.
 
-## Cache and state
+## Cache
 
-Discussion payloads are stored as JSON under
-`HERDR_PLUGIN_STATE_DIR/cache/*.json`, one entry per PR and section, with
-user-private permissions (directory `0700`, files `0600`). Filenames are hashes
-of the canonical PR URL and section. Entries older than 7 days are removed
-during later cache use; no background cleanup runs. The cache holds discussion
-text only — it stores no tokens, and all GitHub access goes through `gh`.
-
-`HERDR_PLUGIN_STATE_DIR/panes.json` (next to `cache/`, not inside it) records which Glance pane belongs to
-which tab, so reopening focuses the existing pane instead of creating another.
+Discussion payloads are stored as JSON under `STATE_DIR/cache/*.json`, one
+entry per PR and section, with user-private permissions (directory `0700`,
+files `0600`). The standalone binary uses `$XDG_STATE_HOME/pr-glance`, default
+`~/.local/state/pr-glance`; wrappers choose their own. Filenames are hashes of
+the canonical PR URL and section. Entries older than 7 days are removed during
+later cache use. The cache holds discussion text only; it stores no tokens.
 
 ## Troubleshooting
 
 | Symptom | What to do |
 | --- | --- |
-| "No PR for this branch" | gh found no PR for the resolved checkout and branch. Push the branch and open a PR; Glance never creates one. |
+| "No PR for this branch" | gh found no PR for the checkout and branch. Push the branch and open a PR; Glance never creates one. |
 | Authentication error | Run `gh auth login`. The pane shows the same hint. |
 | "rate limited, retry in Ns" | GitHub applied a rate limit. Glance honours the retry time when GitHub supplies one, otherwise waits five minutes. Manual refresh respects the same cooldown. |
 | "stale" marker | The last refresh failed or the data is past its interval. The shown data is the last good result for the same PR. |
-| "No working pane" | No git checkout could be resolved in this tab. Focus a pane whose directory is inside a git checkout. |
-| Install fails on the Herdr version | The manifest requires Herdr 0.8.2 or newer. Upgrade Herdr. |
-| Install fails with `unsupported operating system:` or `unsupported architecture:` | Only macOS and Linux, on amd64 and arm64, have prebuilt binaries. Build from source instead. |
-| Install fails with `gzip is required` or `no SHA-256 tool found` | Install `gzip`, and `sha256sum` or `shasum`. |
-| Checksum mismatch | The download did not match the release checksum. Retry; if it repeats, do not use the artifact and report it. |
-| Suspect the plugin, not the pane | Run `bin/herdr-pr-glance snapshot --cwd PATH` outside Herdr to print the resolved source and PR data for a checkout. |
-| Nothing appears at all | Check `herdr plugin log list`. |
-
-## Supported binary targets
-
-`.goreleaser.yaml` builds four archives plus `checksums.txt`: darwin and linux,
-amd64 and arm64.
-
-| Target | Test suite run natively | Release binary executed natively |
-| --- | --- | --- |
-| darwin/arm64 | yes — CI `macos-latest`, and locally | yes — a GoReleaser snapshot binary was run locally |
-| darwin/amd64 | no — cross-built only | no |
-| linux/amd64 | yes — CI `ubuntu-latest` | no |
-| linux/arm64 | yes — in a local aarch64 Docker container, including a CGO-free build; no CI runner | no |
-
-`.github/workflows/ci.yml` runs a two-entry matrix, `macos-latest` (arm64) and
-`ubuntu-latest` (amd64), and on each runner executes `gofmt`, `go vet`,
-`go test ./...`, `go test -race ./...` and a `go mod tidy` cleanliness check.
-Release archives are cross-compiled by GoReleaser with `CGO_ENABLED=0` on
-`ubuntu-latest` (`.github/workflows/release.yml`), so race instrumentation is
-never part of a shipped binary.
-
-Cross-compilation is not a runtime test. No release has been published yet, so
-the four archives describe what the release workflow will produce, not files
-you can download today.
-
-## Scope
-
-Glance PR only reads from GitHub. Merging, closing, approving, replying, resolving
-threads, requesting reviews, rerunning CI and full diffs are out of scope.
-
-Maintainers: see [docs/releasing.md](docs/releasing.md) for the release process.

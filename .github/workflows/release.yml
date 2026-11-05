@@ -19,18 +19,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Tag matches VERSION and the plugin manifest
+      - name: Tag matches VERSION
         run: |
           tag="${GITHUB_REF_NAME}"
           version=$(tr -d ' \t\r\n' < VERSION)
-          manifest=$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' herdr-plugin.toml | head -n 1)
-          echo "tag=$tag VERSION=$version manifest=$manifest"
+          echo "tag=$tag VERSION=$version"
           if [ "$tag" != "v$version" ]; then
             echo "tag $tag does not match VERSION $version" >&2
-            exit 1
-          fi
-          if [ "$manifest" != "$version" ]; then
-            echo "herdr-plugin.toml version $manifest does not match VERSION $version" >&2
             exit 1
           fi
 
