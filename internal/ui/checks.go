@@ -2,38 +2,10 @@ package ui
 
 import (
 	"strconv"
-	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
 	"github.com/cupsadarius/pr-glance/model"
 )
-
-// barRuns splits width into the failing, running, passed and other runs of the
-// CI bar. Each run is proportional to its count and any non-empty group keeps
-// at least one cell; the largest run absorbs rounding and the cells the
-// minimums borrowed, so the runs always fill the width exactly. Callers only
-// draw the bar at widths well above four cells.
-func barRuns(c model.CheckCounts, width int) [4]int {
-	counts := [4]int{c.Failed, c.Pending, c.Passed, c.Neutral + c.Skipped + c.Unknown}
-	total := counts[0] + counts[1] + counts[2] + counts[3]
-	var runs [4]int
-	if total == 0 || width <= 0 {
-		return runs
-	}
-	sum, largest := 0, -1
-	for i, n := range counts {
-		if n == 0 {
-			continue
-		}
-		runs[i] = max(1, n*width/total)
-		sum += runs[i]
-		if largest < 0 || runs[i] > runs[largest] {
-			largest = i
-		}
-	}
-	runs[largest] += width - sum
-	return runs
-}
 
 // foldKey marks the fold row in Model.Expanded. Review-thread keys are GitHub
 // node IDs, which never equal it.
@@ -52,57 +24,13 @@ func failing(s model.CheckState) bool {
 	return false
 }
 
-// ciBar draws barRuns as coloured glyph runs; "other" uses a thinner rule so it
-// reads as background.
-func ciBar(c model.CheckCounts, w int) string {
-	runs := barRuns(c, w)
-	glyphs := [4]string{"━", "━", "━", "─"}
-	styles := [4]lipgloss.Style{pal.red, pal.yellow, pal.green, pal.faint}
-	var b strings.Builder
-	for i, n := range runs {
-		b.WriteString(styled(styles[i], strings.Repeat(glyphs[i], n)))
-	}
-	return b.String()
-}
-
-// ciSummary is the heading's verdict by precedence: failing and running,
-// failing, running, passed, then the tally.
-func (m *Model) ciSummary() []span {
-	c := m.Snapshot.CheckCounts
-	running := span{text: m.pendingGlyph() + " " + strconv.Itoa(c.Pending) + " running", style: pal.yellow}
-	failed := span{text: "✗ " + strconv.Itoa(c.Failed) + " failing", style: pal.red}
-	switch {
-	case len(m.Snapshot.Checks) == 0:
-		return []span{{text: "No checks", style: pal.faint}}
-	case c.Failed > 0 && c.Pending > 0:
-		return []span{running, {text: " · ", style: pal.faint}, failed}
-	case c.Failed > 0:
-		return []span{failed}
-	case c.Pending > 0:
-		return []span{running}
-	case c.Passed > 0:
-		return []span{{text: "✓ " + strconv.Itoa(c.Passed) + " passed", style: pal.green}}
-	default:
-		return countsSpans(c)
-	}
-}
-
 // pendingGlyph is the spinner's current frame.
 func (m *Model) pendingGlyph() string { return m.spin.View() }
 
-// ciBlock renders the CI heading, the bar and the check rows. Failing and
-// running checks are listed; the rest fold into one selectable summary row
-// that enter expands in place.
-func (m *Model) ciBlock(w, paneW int) ([]string, []bodyItem) {
+// ciItems lists failing and running checks; the rest fold into one selectable
+// summary row that enter expands in place.
+func (m *Model) ciItems(w int) []bodyItem {
 	s := m.Snapshot
-	heading := append([]span{{text: "CI", style: pal.bold}, {text: "  ", style: pal.none}}, m.ciSummary()...)
-	head := wrapSpans(heading, w)
-	if len(s.Checks) == 0 {
-		return head, nil
-	}
-	if paneW >= minBarWidth {
-		head = append(head, ciBar(s.CheckCounts, w))
-	}
 	var items []bodyItem
 	row := func(c model.Check) bodyItem {
 		return bodyItem{lines: []string{m.checkLine(c, w)}, url: c.URL}
@@ -122,7 +50,7 @@ func (m *Model) ciBlock(w, paneW int) ([]string, []bodyItem) {
 		}
 	}
 	if len(folded) == 0 {
-		return head, items
+		return items
 	}
 	items = append(items, bodyItem{lines: []string{m.foldRow(w)}, fold: true})
 	if m.Expanded[foldKey] {
@@ -130,7 +58,7 @@ func (m *Model) ciBlock(w, paneW int) ([]string, []bodyItem) {
 			items = append(items, row(c))
 		}
 	}
-	return head, items
+	return items
 }
 
 // checkLine is a check row whose running glyph is the spinner frame.

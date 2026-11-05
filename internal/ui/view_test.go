@@ -18,6 +18,7 @@ func viewHarness() (*Model, *time.Time) {
 	now := time.Unix(1_000_000, 0)
 	m := New(nil, &fakeAPI{complete: true}, &fakeCache{}, func() time.Time { return now })
 	m.Width, m.Height = 44, 40
+	m.Zoom = func() error { return nil }
 	return m, &now
 }
 
@@ -31,9 +32,10 @@ func overviewFixture(m *Model, now time.Time) {
 		BaseBranch:     "main",
 		HeadBranch:     "feature/retry",
 		ReviewDecision: "CHANGES_REQUESTED",
-		Commits:        143, ChangedFiles: 8, Additions: 284, Deletions: 76,
+		MergeState:     "BLOCKED", Mergeable: "MERGEABLE", Behind: intp(2),
+		Commits: 143, ChangedFiles: 8, Additions: 284, Deletions: 76,
 		Checks: []model.Check{
-			{Name: "unit tests", URL: "https://ci.example.com/unit", State: model.CheckFailed},
+			{Name: "unit tests", URL: "https://ci.example.com/unit", State: model.CheckFailed, Required: true},
 			{Name: "deploy preview", URL: "https://ci.example.com/deploy", State: model.CheckTimedOut},
 			{Name: "e2e", URL: "https://ci.example.com/e2e", State: model.CheckCancelled},
 			{Name: "migrate", URL: "https://ci.example.com/migrate", State: model.CheckActionRequired},
@@ -138,12 +140,12 @@ func TestStackBlockListsEntriesTopFirstAndMarksTheCurrentOne(t *testing.T) {
 	}
 	rows := strings.Join(bodyRows(m.View().Content), "\n")
 	top, current, bottom := strings.Index(rows, "#3709"), strings.Index(rows, "#3630"), strings.Index(rows, "#3705")
-	ci := strings.Index(rows, "CI  ")
+	ci := strings.Index(rows, "Checks  ")
 	if top < 0 || current < 0 || bottom < 0 || ci < 0 {
 		t.Fatalf("stack rows missing:\n%s", rows)
 	}
 	if !(ci < top && top < current && current < bottom) {
-		t.Fatalf("the stack renders top first, below CI:\n%s", rows)
+		t.Fatalf("the stack renders top first, below the checks:\n%s", rows)
 	}
 	for _, want := range []string{"review required", "changes requested", "approved"} {
 		if !strings.Contains(plain, want) {
@@ -237,6 +239,7 @@ func fixtures(now time.Time) map[string]func(*Model) {
 			overviewFixture(m, now)
 			m.Snapshot.Checks, m.Snapshot.CheckCounts = nil, model.CheckCounts{}
 		},
+		"ready":        func(m *Model) { busyReadyFixture(m, now) },
 		"stack":        func(m *Model) { stackFixture(m, now) },
 		"comments":     func(m *Model) { commentsFixture(m, now) },
 		"reviews":      func(m *Model) { reviewsFixture(m, now) },
@@ -275,9 +278,9 @@ func assertBounds(t *testing.T, content string, w, h int) {
 // survivors are strings the narrowest supported pane must still show, so the
 // width bound cannot be satisfied by silently truncating the content away.
 var survivors = map[string][]string{
-	"overview":     {"Re-request", "Overview", "unit tests", "CI  "},
+	"overview":     {"Re-request", "Overview", "unit tests", "Checks  "},
 	"stack":        {"Re-request", "Stack  #", "#3705"},
-	"no-checks":    {"Re-request", "Overview", "No checks"},
+	"no-checks":    {"Re-request", "Overview", "no checks"},
 	"comments":     {"Re-request", "Comments", "@octocat"},
 	"reviews":      {"Re-request", "Reviews", "handler.go", "view.go"},
 	"reviews-open": {"Re-request", "Reviews", "handler.go", "This needs a guard"},
@@ -473,8 +476,8 @@ func TestOverviewRendersIdentityStatisticsAndChecks(t *testing.T) {
 	for _, want := range []string{
 		"12s ago", "acme/service", "#3630", "OPEN",
 		"Re-request denied approvals", "@author", "143 commits", "8 files",
-		"+284", "-76", "Review  changes requested", "Overview", "Comments", "Reviews",
-		"CI  ⠋ 1 running · ✗ 4 failing", "✓ 2 passed",
+		"+284", "-76", "Approvals      changes requested", "Overview", "Comments", "Reviews",
+		"Checks         4 failing · 1 running · 2 passed", "▸ ✓ 2 passed",
 		"× unit tests", "× deploy preview", "× e2e", "× migrate", "⠋ integration tests",
 		"r refresh  o browser  z zoom  ? help  q close",
 	} {
@@ -489,7 +492,7 @@ func TestEmptyCheckListSaysNoChecks(t *testing.T) {
 	overviewFixture(m, *now)
 	m.Snapshot.Checks, m.Snapshot.CheckCounts = nil, model.CheckCounts{}
 	out := plainView(m)
-	if !strings.Contains(out, "No checks") || strings.Contains(out, "passed") {
+	if !strings.Contains(out, "Checks         no checks") || strings.Contains(out, "passed") {
 		t.Fatalf("expected No checks and no success claim:\n%s", out)
 	}
 }
@@ -804,7 +807,7 @@ func styledLine(t *testing.T, content, want string) string {
 
 func TestColorLeavesTheLayoutUnchanged(t *testing.T) {
 	for _, tc := range []struct{ name, want string }{
-		{"overview", goldenOverview44}, {"reviews", goldenReviews44},
+		{"overview", goldenOverview44}, {"ready", goldenOverviewReady44}, {"reviews", goldenReviews44},
 	} {
 		m, now := viewHarness()
 		fixtures(*now)[tc.name](m)
@@ -838,7 +841,7 @@ func TestCheckRowsAndCountsCarryStateColors(t *testing.T) {
 		{"unit tests", sgrRed}, {"deploy preview", sgrRed}, {"e2e", sgrRed}, {"migrate", sgrRed},
 		{"integration tests", sgrYellow}, {"lint", sgrGreen}, {"build", sgrGreen},
 		{"docs", sgrFaint}, {"vendor", sgrFaint}, {"mystery", sgrFaint},
-		{"4 failing", sgrRed}, {"1 running", sgrYellow}, {"CI  ", sgrBold}, {"2 passed", sgrGreen},
+		{"4 failing · 1 running", sgrRed}, {"Checks  ", sgrBold}, {"✓ 2 passed", sgrGreen},
 	} {
 		if line := styledLine(t, out, tc.name); !carries(line, tc.sgr) {
 			t.Errorf("%q must carry %q: %q", tc.name, tc.sgr, line)
@@ -860,7 +863,7 @@ func TestHeaderTabsAndFooterCarryTheirStyles(t *testing.T) {
 		{"#3630", sgrBold}, {"OPEN", "42"}, {"OPEN", "30"},
 		{"Re-request denied", sgrBold}, {"@author", sgrCyan},
 		{"+284", sgrGreen}, {"-76", sgrRed},
-		{"Review  approved", sgrGreen},
+		{"Approvals  ", sgrGreen},
 		{"Overview", "4"}, {"Overview", sgrBold},
 		{"q close", sgrBold}, {"q close", sgrFaint},
 	} {
@@ -873,8 +876,8 @@ func TestHeaderTabsAndFooterCarryTheirStyles(t *testing.T) {
 	if line := styledLine(t, out, "MERGED"); !carries(line, "45") {
 		t.Errorf("a merged PR must be magenta: %q", line)
 	}
-	if line := styledLine(t, out, "review required"); !carries(line, sgrYellow) {
-		t.Errorf("a pending review decision must be yellow: %q", line)
+	if line := styledLine(t, out, "review required"); !carries(line, sgrRed) {
+		t.Errorf("a required review GitHub still waits for must be red: %q", line)
 	}
 }
 
@@ -995,24 +998,24 @@ const goldenOverview44 = ` OPEN  #3630  acme/service           12s ago
 Re-request denied approvals when the
 reviewer list changes
 @author · 143 commits · 8 files · +284 -76
+feature/retry → main
 
 Overview  Comments  Reviews
 
- CI  ⠋ 1 running · ✗ 4 failing
- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━────────────
-›× unit tests                         failed
- × deploy preview                  timed out
- × e2e                             cancelled
- × migrate                   action required
- ⠋ integration tests                 pending
- ▸ ✓ 2 passed · 1 neutral · 1 skipped · 1 u…
+ Blocked
+ ━━━━━━━━ ━━━━━━━━ ━━━━━━━━ ━━━━━━━━ ━━━━━━━
  
- Review  changes requested
-
-
-
-
-
+ ✗ Checks         4 failing · 1 running · 2…
+›  × unit tests                       failed
+   × deploy preview                timed out
+   × e2e                           cancelled
+   × migrate                 action required
+   ⠋ integration tests               pending
+   ▸ ✓ 2 passed · 1 neutral · 1 skipped · 1…
+ ✗ Approvals      changes requested
+ ✓ Conversations  no threads
+ ● Branch         2 behind main (not requir…
+ ✓ Mergeable      no conflicts
 
 
 
@@ -1036,6 +1039,7 @@ const goldenReviews44 = ` OPEN  #3630  acme/service           12s ago
 Re-request denied approvals when the
 reviewer list changes
 @author · 143 commits · 8 files · +284 -76
+feature/retry → main
 
 Overview  Comments  Reviews
 
@@ -1045,7 +1049,6 @@ Overview  Comments  Reviews
  
  ▸ internal/ui/view.go  ✓~ 1c
  
-
 
 
 
@@ -1121,12 +1124,12 @@ func TestMetaLineAndTabs(t *testing.T) {
 	m.Width = 100
 	m.Snapshot.Additions = 25365
 	plain := plainView(m)
-	for _, want := range []string{"@author · 143 commits · 8 files · +25k -76", "Overview  Comments  Reviews"} {
+	for _, want := range []string{"@author · 143 commits · 8 files · +25k -76", "feature/retry → main", "Overview  Comments  Reviews"} {
 		if !strings.Contains(plain, want) {
 			t.Fatalf("missing %q in:\n%s", want, plain)
 		}
 	}
-	for _, gone := range []string{"GLANCE PR", "[Overview]", "Review:", "feature/retry → main", "refreshed"} {
+	for _, gone := range []string{"GLANCE PR", "[Overview]", "Review:", "refreshed"} {
 		if strings.Contains(plain, gone) {
 			t.Fatalf("%q must be gone from the PR header:\n%s", gone, plain)
 		}
@@ -1146,3 +1149,44 @@ func TestSectionLoadingSpinnerIsYellow(t *testing.T) {
 		t.Errorf("the loading spinner must be yellow and its label faint: %q", line)
 	}
 }
+
+const goldenOverviewReady44 = ` OPEN  #3630  acme/service           12s ago
+Retry
+@author · 1 commit · 1 file · +0 -0
+feature/retry → main
+
+Overview  Comments  Reviews
+
+ Ready to merge
+ ━━━━━━━━ ━━━━━━━━ ━━━━━━━━ ━━━━━━━━ ━━━━━━━
+ 
+ ✓ Checks         2 passed
+›  ▸ ✓ 2 passed
+ ✓ Approvals      1 approval
+ ● Conversations  3 unresolved of 3
+ ✓ Branch         up to date with main
+ ✓ Mergeable      no conflicts
+ 
+ Reviewers ─────────────────────────────────
+ @ana  ✓ approved  2h
+ @platform-reviewers-with-a-long-name (team…
+ 
+ Threads  3 open ───────────────────────────
+ internal/store/query/builder.go
+ ├─ L88   @radu N+1 here, batch the lookups…
+ ╰─ L141  @radu index hint?
+ db/migrate.sql
+ ╰─ file  @ana down migration
+ 
+ Activity ──────────────────────────────────
+ ↑ 6m  @author pushed 3 commits
+ ✓ 2h  @ana approved
+ ○ 2d  @author marked ready for review
+
+
+
+
+
+
+
+r refresh o browser z zoom ? help q close`

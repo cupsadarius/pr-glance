@@ -133,6 +133,7 @@ func TestOpenSelectedURL(t *testing.T) {
 func TestOpenAndZoomHooksReportErrors(t *testing.T) {
 	m, now := viewHarness()
 	overviewFixture(m, *now)
+	m.Zoom = nil
 	if cmd := apply(m, key("z")); cmd != nil {
 		t.Fatal("nil zoom hook must be a no-op")
 	}

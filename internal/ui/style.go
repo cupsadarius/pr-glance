@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -193,30 +192,6 @@ func styleLeftTruncated(full, shown string, spans []span) string {
 		return styled(pal.faint, shown)
 	}
 	return styled(pal.faint, "…") + renderSpans(sliceSpans(spans, start, len(full)))
-}
-
-// countsSpans styles the check tally: a failing count is red and a running one
-// yellow because they are the reason to look; the rest stay faint.
-func countsSpans(c model.CheckCounts) []span {
-	var out []span
-	for _, p := range []struct {
-		n     int
-		label string
-		style lipgloss.Style
-	}{{c.Failed, "failed", pal.red}, {c.Pending, "pending", pal.yellow}, {c.Passed, "passed", pal.faint},
-		{c.Neutral, "neutral", pal.faint}, {c.Skipped, "skipped", pal.faint}, {c.Unknown, "unknown", pal.faint}} {
-		if p.n <= 0 {
-			continue
-		}
-		if len(out) > 0 {
-			out = append(out, span{text: " · ", style: pal.faint})
-		}
-		out = append(out, span{text: strconv.Itoa(p.n) + " " + p.label, style: p.style})
-	}
-	if len(out) == 0 {
-		return []span{{text: "No checks", style: pal.faint}}
-	}
-	return out
 }
 
 // styleFooter keeps the key letters legible and dims their descriptions.

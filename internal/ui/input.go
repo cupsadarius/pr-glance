@@ -326,7 +326,7 @@ func (m *Model) clampReveal() {
 }
 
 // fit bounds the cursor and reports the body's line count and item spans.
-func (m *Model) fit() (int, [][2]int) {
+func (m *Model) fit() (int, [][3]int) {
 	lead, items, tail := m.body(m.contentWidth())
 	if m.Cursor >= len(items) {
 		m.Cursor = len(items) - 1

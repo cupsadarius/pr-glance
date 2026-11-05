@@ -46,6 +46,7 @@ func (m *Model) bindings() keyMap {
 	k.Next.SetEnabled(stacked)
 	k.Prev.SetEnabled(stacked)
 	k.Unpin.SetEnabled(stacked || m.Pinned != nil)
+	k.Zoom.SetEnabled(m.Zoom != nil)
 	return k
 }
 
@@ -68,7 +69,11 @@ func (k keyMap) footerHints(stacked bool) []footerHint {
 		h := b.Help()
 		return footerHint{text: h.Key + " " + h.Desc, drop: drop}
 	}
-	hints := []footerHint{hint(k.Refresh, 4), hint(k.Open, 5), hint(k.Zoom, 3), hint(k.Help, 1), hint(k.Quit, 0)}
+	hints := []footerHint{hint(k.Refresh, 4), hint(k.Open, 5)}
+	if k.Zoom.Enabled() {
+		hints = append(hints, hint(k.Zoom, 3))
+	}
+	hints = append(hints, hint(k.Help, 1), hint(k.Quit, 0))
 	if stacked {
 		hints = append([]footerHint{hint(k.Stack, 2)}, hints...)
 	}

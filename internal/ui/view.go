@@ -209,6 +209,9 @@ func (m *Model) headerLines(w int) []headerLine {
 	for _, l := range wrapSpans(m.metaSpans(), w) {
 		add(prioCounts, l)
 	}
+	if s.HeadBranch != "" && s.BaseBranch != "" {
+		add(prioCounts, truncateSpans([]span{{text: clean(s.HeadBranch) + " → " + clean(s.BaseBranch), style: pal.faint}}, w))
+	}
 	add(prioBlank, "")
 	text, spans := tabLine(m.Section)
 	out = append(out, headerLine{text: text, targets: spans})
@@ -443,61 +446,11 @@ func (m *Model) body(w int) ([]string, []bodyItem, []string) {
 	}
 }
 
-// overviewBody lays out CI, then the review decision, then the stack. Lines
-// that introduce a group ride on the next item as its head, so the cursor and
-// the row map skip them; whatever is left over trails the last item.
-func (m *Model) overviewBody(w int) ([]string, []bodyItem, []string) {
-	paneW, _ := m.size()
-	var items []bodyItem
-	var pending []string
-	add := func(it bodyItem) {
-		it.head = append(pending, it.head...)
-		pending = nil
-		items = append(items, it)
-	}
-	head, ci := m.ciBlock(w, paneW)
-	pending = append(pending, head...)
-	for _, it := range ci {
-		add(it)
-	}
-	pending = append(pending, "", m.reviewLine(w))
-	if s := m.Snapshot.Stack; s != nil {
-		pending = append(pending, "", m.stackHeading(w))
-		for i := len(s.Entries) - 1; i >= 0; i-- {
-			e := s.Entries[i]
-			pin := e.PR
-			// The cursor gutter already points at the row it selects, so the
-			// entry marker stands down there. The index is the item's place in
-			// the whole body, which now starts with the CI rows.
-			add(bodyItem{lines: []string{m.stackRow(e, w, m.Cursor == len(items))}, url: e.PR.URL, pin: &pin})
-		}
-		if hidden := s.Size - len(s.Entries); hidden > 0 {
-			pending = append(pending, styled(pal.faint, fmt.Sprintf("+%d more", hidden)))
-		}
-	}
-	return nil, items, pending
-}
-
-// reviewLine states the review decision in words.
-func (m *Model) reviewLine(w int) string {
-	text := "no decision yet"
-	switch strings.ToUpper(strings.ReplaceAll(clean(m.Snapshot.ReviewDecision), " ", "_")) {
-	case "APPROVED":
-		text = "approved"
-	case "CHANGES_REQUESTED":
-		text = "changes requested"
-	case "REVIEW_REQUIRED":
-		text = "review required"
-	}
-	return truncateSpans([]span{{text: "Review", style: pal.bold}, {text: "  ", style: pal.none},
-		{text: text, style: decisionStyle(m.Snapshot.ReviewDecision)}}, w)
-}
-
 // stackHeading names the stack, the shown entry's position and the trunk.
 func (m *Model) stackHeading(w int) string {
 	s := m.Snapshot
-	return truncateSpans([]span{{text: "Stack", style: pal.bold}, {text: fmt.Sprintf("  #%d · %s/%d · onto %s",
-		s.Stack.Number, position(s.StackPosition), s.Stack.Size, clean(s.Stack.BaseBranch)), style: pal.faint}}, w)
+	return sectionRule(fmt.Sprintf("Stack  #%d · %s/%d · onto %s",
+		s.Stack.Number, position(s.StackPosition), s.Stack.Size, clean(s.Stack.BaseBranch)), w)
 }
 
 // stackRow shows one entry: its number, a dot coloured by its lifecycle, its
@@ -736,15 +689,16 @@ func threadTailSpans(t model.ReviewThread, compact bool) []span {
 }
 
 // renderBody flattens lead lines, items and trailing lines into screen lines,
-// and reports each item's [start,end) line span. Head and trailing lines
-// belong to no item, so a click on them selects nothing.
-func renderBody(lead []string, items []bodyItem, tail []string) ([]string, [][2]int) {
+// and reports each item's [start,end) line span plus where its head starts.
+// Head and trailing lines belong to no item, so a click on them selects nothing.
+func renderBody(lead []string, items []bodyItem, tail []string) ([]string, [][3]int) {
 	lines := make([]string, 0, len(lead)+len(items)+len(tail))
 	for _, l := range lead {
 		lines = append(lines, " "+l)
 	}
-	spans := make([][2]int, len(items))
+	spans := make([][3]int, len(items))
 	for i, it := range items {
+		spans[i][2] = len(lines)
 		for _, l := range it.head {
 			lines = append(lines, " "+l)
 		}
@@ -760,7 +714,7 @@ func renderBody(lead []string, items []bodyItem, tail []string) ([]string, [][2]
 	return lines, spans
 }
 
-func markCursor(lines []string, spans [][2]int, cursor int) {
+func markCursor(lines []string, spans [][3]int, cursor int) {
 	if cursor < 0 || cursor >= len(spans) {
 		return
 	}
@@ -769,7 +723,7 @@ func markCursor(lines []string, spans [][2]int, cursor int) {
 	}
 }
 
-func itemAt(spans [][2]int, line int) int {
+func itemAt(spans [][3]int, line int) int {
 	for i, s := range spans {
 		if line >= s[0] && line < s[1] {
 			return i
@@ -796,7 +750,7 @@ func clampOffset(off, total, high int) int {
 
 // revealCursor scrolls the least it can to bring the selected item's first line
 // into view. An item taller than the body shows its head, never its tail.
-func revealCursor(off, total, high int, spans [][2]int, cursor int) int {
+func revealCursor(off, total, high int, spans [][3]int, cursor int) int {
 	if high <= 0 || cursor < 0 || cursor >= len(spans) {
 		return clampOffset(off, total, high)
 	}
@@ -804,6 +758,9 @@ func revealCursor(off, total, high int, spans [][2]int, cursor int) int {
 	switch {
 	case start < off, start >= off+high:
 		off = start
+		if head := spans[cursor][2]; start-head < high {
+			off = head // the lines that introduce the item come along
+		}
 	case end-start <= high && end > off+high:
 		off = end - high
 	}
