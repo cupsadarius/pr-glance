@@ -7,7 +7,7 @@ import (
 	"charm.land/bubbles/v2/help"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 // palette names only the sixteen ANSI colours (foreground, and background for

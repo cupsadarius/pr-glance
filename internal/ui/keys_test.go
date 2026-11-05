@@ -7,7 +7,7 @@ import (
 	bkey "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 func TestStackBindingsFollowTheStack(t *testing.T) {

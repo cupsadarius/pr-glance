@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 func TestBarRuns(t *testing.T) {

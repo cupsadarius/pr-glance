@@ -8,8 +8,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/cupsadarius/herdr-pr-glance/internal/cache"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/internal/cache"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 func TestDiskCacheIntegration(t *testing.T) {

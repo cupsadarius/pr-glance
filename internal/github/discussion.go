@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 const commentFields = `id body url createdAt author { login }`

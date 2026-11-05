@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cupsadarius/herdr-pr-glance/internal/command"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/command"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 func TestRateLimitClassification(t *testing.T) {

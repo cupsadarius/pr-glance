@@ -8,7 +8,7 @@ import (
 
 	bkey "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 // ActionErrMsg carries the outcome of a host action (open or zoom) back into

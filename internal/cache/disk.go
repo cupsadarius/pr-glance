@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 const schemaVersion = 1

@@ -1,4 +1,4 @@
-module github.com/cupsadarius/herdr-pr-glance
+module github.com/cupsadarius/pr-glance
 
 go 1.25.8
 

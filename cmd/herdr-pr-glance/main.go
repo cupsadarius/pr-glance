@@ -14,12 +14,12 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/cupsadarius/herdr-pr-glance/internal/cache"
-	"github.com/cupsadarius/herdr-pr-glance/internal/command"
-	"github.com/cupsadarius/herdr-pr-glance/internal/github"
-	"github.com/cupsadarius/herdr-pr-glance/internal/herdr"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
-	"github.com/cupsadarius/herdr-pr-glance/internal/ui"
+	"github.com/cupsadarius/pr-glance/command"
+	"github.com/cupsadarius/pr-glance/internal/cache"
+	"github.com/cupsadarius/pr-glance/internal/github"
+	"github.com/cupsadarius/pr-glance/internal/herdr"
+	"github.com/cupsadarius/pr-glance/internal/ui"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 // version is replaced at release build time with -ldflags "-X main.version=...".

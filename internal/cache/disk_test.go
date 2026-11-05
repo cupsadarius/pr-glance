@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 func fixture() (model.PR, model.Discussion, time.Time) {

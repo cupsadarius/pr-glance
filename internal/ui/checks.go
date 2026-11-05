@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 // barRuns splits width into the failing, running, passed and other runs of the

@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cupsadarius/herdr-pr-glance/internal/command"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/command"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 const discoveryFields = "id,url,number,title,author,state,isDraft,baseRefName,headRefName,headRepository,headRepositoryOwner,additions,deletions,changedFiles,reviewDecision"

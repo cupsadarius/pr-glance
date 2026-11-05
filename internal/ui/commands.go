@@ -6,7 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 // TickMsg schedules local source resolution. Only its accepted result can

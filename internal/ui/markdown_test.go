@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/cupsadarius/herdr-pr-glance/internal/model"
+	"github.com/cupsadarius/pr-glance/model"
 )
 
 var errRenderFailed = errors.New("render failed")
