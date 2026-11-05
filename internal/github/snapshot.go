@@ -8,12 +8,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cupsadarius/pr-glance/command"
 	"github.com/cupsadarius/pr-glance/model"
 )
 
-const discoveryFields = "id,url,number,title,author,state,isDraft,baseRefName,headRefName,headRepository,headRepositoryOwner,additions,deletions,changedFiles,reviewDecision"
+const discoveryFields = "id,url,number,title,author,state,isDraft,baseRefName,headRefName,headRepository,headRepositoryOwner,additions,deletions,changedFiles,reviewDecision,headRefOid"
 
 // stackFields ride the checks query so a summary stays one GraphQL request.
 // Both fields are null for a pull request that belongs to no stack, and the
@@ -22,7 +23,7 @@ const stackEntries = 50
 
 var stackFields = `stackEntry{position} stack{number size baseRefName entries(first:` + strconv.Itoa(stackEntries) +
 	`){nodes{position pullRequest{id number url title state isDraft headRefName baseRefName reviewDecision}}}}`
-var checksQuery = `query($id:ID!,$cursor:String){node(id:$id){... on PullRequest{` + stackFields + ` commits(last:1){totalCount nodes{commit{statusCheckRollup{contexts(first:100,after:$cursor){nodes{__typename ... on CheckRun{name status conclusion detailsUrl} ... on StatusContext{context state targetUrl}} pageInfo{hasNextPage endCursor}}}}}}}}}`
+var checksQuery = `query($id:ID!,$cursor:String){node(id:$id){... on PullRequest{` + stackFields + ` commits(last:1){totalCount nodes{commit{statusCheckRollup{contexts(first:100,after:$cursor){nodes{__typename ... on CheckRun{name status conclusion detailsUrl completedAt isRequired(pullRequestId:$id)} ... on StatusContext{context state targetUrl createdAt isRequired(pullRequestId:$id)}} pageInfo{hasNextPage endCursor}}}}}}}}}`
 
 // Snapshot reports the pull request of the source checkout's branch.
 func (c Client) Snapshot(ctx context.Context, source model.Source) (model.Snapshot, error) {
@@ -83,11 +84,11 @@ func (c Client) snapshot(ctx context.Context, cwd string, discoveryArgs ...strin
 		return result, c.fetchError(err)
 	}
 	var pr struct {
-		ID, URL, Title, State, BaseRefName, HeadRefName, ReviewDecision string
-		Number, Additions, Deletions, ChangedFiles                      int
-		IsDraft                                                         bool
-		Author, HeadRepositoryOwner                                     struct{ Login string }
-		HeadRepository                                                  struct{ Name string }
+		ID, URL, Title, State, BaseRefName, HeadRefName, ReviewDecision, HeadRefOid string
+		Number, Additions, Deletions, ChangedFiles                                  int
+		IsDraft                                                                     bool
+		Author, HeadRepositoryOwner                                                 struct{ Login string }
+		HeadRepository                                                              struct{ Name string }
 	}
 	if err := json.Unmarshal([]byte(out), &pr); err != nil {
 		return result, invalid("decode PR: %v", err)
@@ -96,7 +97,7 @@ func (c Client) snapshot(ctx context.Context, cwd string, discoveryArgs ...strin
 	if err != nil {
 		return result, err
 	}
-	result = model.Snapshot{PR: &identity, Title: pr.Title, Author: pr.Author.Login, State: pr.State, Draft: pr.IsDraft, BaseBranch: pr.BaseRefName, HeadBranch: pr.HeadRefName, ReviewDecision: pr.ReviewDecision, Additions: pr.Additions, Deletions: pr.Deletions, ChangedFiles: pr.ChangedFiles}
+	result = model.Snapshot{PR: &identity, Title: pr.Title, Author: pr.Author.Login, State: pr.State, Draft: pr.IsDraft, BaseBranch: pr.BaseRefName, HeadBranch: pr.HeadRefName, ReviewDecision: pr.ReviewDecision, HeadOID: pr.HeadRefOid, Additions: pr.Additions, Deletions: pr.Deletions, ChangedFiles: pr.ChangedFiles}
 	if pr.HeadRepository.Name != "" {
 		result.HeadRepository = pr.HeadRepositoryOwner.Login + "/" + pr.HeadRepository.Name
 	}
@@ -181,6 +182,9 @@ func (c Client) snapshot(ctx context.Context, cwd string, discoveryArgs ...strin
 		}
 		return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 	})
+	if err := c.overview(ctx, cwd, identity.Host, pr.ID, &result); err != nil {
+		return model.Snapshot{}, err
+	}
 	result.FetchedAt = c.now()
 	return result, nil
 }
@@ -253,11 +257,14 @@ func normalizeStack(n stackNode) *model.Stack {
 type checkNode struct {
 	Type                                                            string `json:"__typename"`
 	Name, Status, Conclusion, DetailsURL, Context, State, TargetURL string
+	IsRequired                                                      bool
+	CompletedAt, CreatedAt                                          time.Time
 }
 
 func normalizeCheck(n checkNode) model.Check {
-	c := model.Check{Name: n.Name, URL: n.DetailsURL, Status: n.Status, Conclusion: n.Conclusion, State: model.CheckUnknown}
+	c := model.Check{Name: n.Name, URL: n.DetailsURL, Status: n.Status, Conclusion: n.Conclusion, State: model.CheckUnknown, Required: n.IsRequired, At: n.CompletedAt}
 	if n.Type == "StatusContext" {
+		c.At = n.CreatedAt
 		c.Name = n.Context
 		c.URL = n.TargetURL
 		c.Status = n.State

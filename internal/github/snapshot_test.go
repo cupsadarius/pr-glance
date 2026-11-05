@@ -21,6 +21,10 @@ type fixtureRunner struct {
 	t       *testing.T
 	replies []reply
 	calls   [][]string
+	// overview answers the overview query, which may read threads and review
+	// state; it is kept apart so tests of the other requests count only those.
+	overview      string
+	overviewCalls [][]string
 }
 
 func (r *fixtureRunner) Run(ctx context.Context, cwd string, args ...string) (string, error) {
@@ -31,8 +35,15 @@ func (r *fixtureRunner) Run(ctx context.Context, cwd string, args ...string) (st
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	r.calls = append(r.calls, args)
 	joined := strings.Join(args, " ")
+	if strings.Contains(joined, "mergeStateStatus") {
+		r.overviewCalls = append(r.overviewCalls, args)
+		if r.overview == "" {
+			return `{"data":{"node":{}}}`, nil
+		}
+		return r.overview, nil
+	}
+	r.calls = append(r.calls, args)
 	for _, forbidden := range []string{"body", "comments", "reviews", "reviewThreads"} {
 		if strings.Contains(joined, forbidden) {
 			r.t.Fatalf("summary requests %s", forbidden)
@@ -46,7 +57,7 @@ func (r *fixtureRunner) Run(ctx context.Context, cwd string, args ...string) (st
 	return x.out, x.err
 }
 func discovery(host, repo, state string, draft bool) string {
-	return fmt.Sprintf(`{"id":"PR_node","url":"https://%s/%s/pull/7","number":7,"title":"Fix","state":%q,"isDraft":%t,"author":{"login":"alice"},"baseRefName":"main","headRefName":"topic","headRepository":{"name":"fork"},"headRepositoryOwner":{"login":"alice"},"additions":5,"deletions":2,"changedFiles":3,"reviewDecision":"APPROVED"}`, host, repo, state, draft)
+	return fmt.Sprintf(`{"id":"PR_node","url":"https://%s/%s/pull/7","number":7,"title":"Fix","state":%q,"isDraft":%t,"author":{"login":"alice"},"baseRefName":"main","headRefName":"topic","headRepository":{"name":"fork"},"headRepositoryOwner":{"login":"alice"},"additions":5,"deletions":2,"changedFiles":3,"reviewDecision":"APPROVED","headRefOid":"abc123"}`, host, repo, state, draft)
 }
 func page(nodes string, more bool, cursor string) string { return pageWith("", nodes, more, cursor) }
 

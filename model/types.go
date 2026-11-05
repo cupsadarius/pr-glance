@@ -51,6 +51,11 @@ const (
 type Check struct {
 	Name, URL, Status, Conclusion string
 	State                         CheckState
+	// Required reports whether the base branch's rules require this check.
+	Required bool
+	// At is when the check completed (CheckRun) or was reported (status);
+	// zero when GitHub gave no time.
+	At time.Time
 }
 type CheckCounts struct{ Failed, Pending, Passed, Neutral, Skipped, Unknown int }
 
@@ -86,7 +91,59 @@ type Snapshot struct {
 	// is then its position within it, and zero otherwise.
 	Stack         *Stack
 	StackPosition int
-	FetchedAt     time.Time
+	// HeadOID is the head commit; MergeState and Mergeable are GitHub's
+	// mergeStateStatus and mergeable, empty when not reported.
+	HeadOID, MergeState, Mergeable string
+	// Behind is how many commits the head is behind the base; nil when unknown.
+	Behind      *int
+	Reviewers   []Reviewer
+	OpenThreads []ThreadSummary
+	// ThreadCount counts every review thread, resolved ones included.
+	ThreadCount int
+	// Activity is the newest events first, at most ten.
+	Activity  []Event
+	FetchedAt time.Time
+}
+
+// Reviewer is one person or team on the review: the latest review they left,
+// or REQUESTED while a review request is open.
+type Reviewer struct {
+	Login string
+	Team  bool
+	State string // APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, REQUESTED
+	At    time.Time
+	URL   string
+}
+
+// ThreadSummary is an unresolved review thread and its first comment. Line is
+// nil for a comment on the whole file.
+type ThreadSummary struct {
+	Path, Author, Body, URL string
+	Line                    *int
+}
+
+type EventKind string
+
+const (
+	EventPush        EventKind = "push"
+	EventApproved    EventKind = "approved"
+	EventChanges     EventKind = "changes"
+	EventCommented   EventKind = "commented"
+	EventRequested   EventKind = "requested"
+	EventCheckFailed EventKind = "check_failed"
+	EventMerged      EventKind = "merged"
+	EventClosed      EventKind = "closed"
+	EventReopened    EventKind = "reopened"
+	EventReady       EventKind = "ready"
+)
+
+// Event is one line of the Overview's activity feed.
+type Event struct {
+	At    time.Time
+	Kind  EventKind
+	Actor string
+	Text  string
+	URL   string
 }
 type ErrorKind string
 
