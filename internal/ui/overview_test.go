@@ -38,7 +38,7 @@ func busyReadyFixture(m *Model, now time.Time) {
 	s.Activity = []model.Event{
 		{At: now.Add(-6 * time.Minute), Kind: model.EventPush, Actor: "author", Text: "pushed 3 commits", URL: "https://c/1"},
 		{At: now.Add(-2 * time.Hour), Kind: model.EventApproved, Actor: "ana", Text: "approved", URL: "https://r/1"},
-		{At: now.Add(-50 * time.Hour), Kind: model.EventReady, Actor: "author", Text: "marked ready for review"},
+		{At: now.Add(-50 * time.Hour), Kind: model.EventReady, Actor: "author", Text: "marked ready"},
 	}
 }
 
@@ -85,16 +85,16 @@ func TestThreadRowsOpenThreadURL(t *testing.T) {
 	readyFixture(m, *now)
 	m.Snapshot.ThreadCount = 3
 	m.Snapshot.OpenThreads = []model.ThreadSummary{
-		{Path: "a/query.go", Line: intp(88), Author: "radu", Body: "N+1 here\nmore", URL: "https://t/1"},
+		{Path: "a/query.go", Line: intp(88), Author: "radu", Body: "\nN+1 here\nmore", URL: "https://t/1"},
 		{Path: "a/query.go", Line: intp(141), Author: "radu", Body: "index hint?", URL: "https://t/2"},
 		{Path: "db/m.sql", Author: "ana", Body: "down migration", URL: "https://t/3"},
 	}
 	it := itemWithURL(t, m, "https://t/1")
-	if line := ansi.Strip(strings.Join(it.lines, "")); !strings.Contains(line, "L88") || !strings.Contains(line, "@radu") || strings.Contains(line, "more") {
+	if line := ansi.Strip(strings.Join(it.lines, "")); !strings.Contains(line, "L88") || !strings.Contains(line, "@radu N+1 here") || strings.Contains(line, "more") {
 		t.Fatalf("thread row = %q", line)
 	}
 	got := plainView(m)
-	if !strings.Contains(got, "Threads  2 open") && !strings.Contains(got, "Threads  3 open") {
+	if !strings.Contains(got, "Threads  3 open") {
 		t.Fatalf("no threads heading in:\n%s", got)
 	}
 	if strings.Count(got, "a/query.go") != 1 {
@@ -113,8 +113,15 @@ func TestActivityRowsOpenURL(t *testing.T) {
 	if line := ansi.Strip(strings.Join(it.lines, "")); !strings.Contains(line, "@ana approved") || !strings.Contains(line, "2h") {
 		t.Fatalf("activity row = %q", line)
 	}
+	if it := itemWithURL(t, m, "https://ci/e2e"); !strings.Contains(ansi.Strip(strings.Join(it.lines, "")), "e2e failed") {
+		t.Fatalf("check row = %q", it.lines)
+	}
 	if !strings.Contains(plainView(m), "Activity") {
 		t.Fatal("no activity heading")
+	}
+	m.Snapshot.Activity = []model.Event{{At: now.Add(-143 * 24 * time.Hour), Kind: model.EventPush, Actor: "bob", Text: "pushed 1 commit", URL: "https://c/1"}}
+	if line := ansi.Strip(strings.Join(itemWithURL(t, m, "https://c/1").lines, "")); !strings.Contains(line, "143d @bob") {
+		t.Fatalf("a long age must keep its gap: %q", line)
 	}
 }
 

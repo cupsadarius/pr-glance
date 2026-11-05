@@ -1014,7 +1014,7 @@ Overview  Comments  Reviews
    ▸ ✓ 2 passed · 1 neutral · 1 skipped · 1…
  ✗ Approvals      changes requested
  ✓ Conversations  no threads
- ● Branch         2 behind main (not requir…
+ ● Branch         2 behind main
  ✓ Mergeable      no conflicts
 
 
@@ -1181,7 +1181,7 @@ Overview  Comments  Reviews
  Activity ──────────────────────────────────
  ↑ 6m  @author pushed 3 commits
  ✓ 2h  @ana approved
- ○ 2d  @author marked ready for review
+ ○ 2d  @author marked ready
 
 
 

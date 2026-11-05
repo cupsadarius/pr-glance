@@ -197,12 +197,17 @@ func threadSummaryRow(t model.ThreadSummary, last bool, w int) string {
 	if t.Line != nil {
 		where = "L" + strconv.Itoa(*t.Line)
 	}
-	body, _, _ := strings.Cut(clean(t.Body), "\n")
+	body := ""
+	for l := range strings.Lines(clean(t.Body)) {
+		if body = strings.TrimSpace(l); body != "" {
+			break
+		}
+	}
 	row := []span{{text: branch + " ", style: pal.faint}, {text: fmt.Sprintf("%-5s ", where), style: pal.faint}}
 	if t.Author != "" {
 		row = append(row, span{text: "@" + clean(t.Author) + " ", style: pal.cyan})
 	}
-	row = append(row, span{text: strings.TrimSpace(body), style: pal.none})
+	row = append(row, span{text: body, style: pal.none})
 	return truncateSpans(row, w)
 }
 
@@ -221,7 +226,7 @@ func (m *Model) eventRow(e model.Event, w int) string {
 	if !ok {
 		glyph = span{text: "○", style: pal.faint}
 	}
-	row := []span{glyph, {text: fmt.Sprintf(" %-4s", ago(m.now().Sub(e.At))), style: pal.faint}}
+	row := []span{glyph, {text: fmt.Sprintf(" %-3s ", ago(m.now().Sub(e.At))), style: pal.faint}}
 	if e.Actor != "" {
 		row = append(row, span{text: "@" + clean(e.Actor) + " ", style: pal.cyan})
 	}

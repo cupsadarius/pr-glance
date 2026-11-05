@@ -182,8 +182,9 @@ func (c Client) snapshot(ctx context.Context, cwd string, discoveryArgs ...strin
 		}
 		return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 	})
+	// razor: an overview error leaves its fields empty and says nothing more; carry a warning if users miss it.
 	if err := c.overview(ctx, cwd, identity.Host, pr.ID, &result); err != nil {
-		return model.Snapshot{}, err
+		result.MergeState, result.Mergeable = "", ""
 	}
 	result.FetchedAt = c.now()
 	return result, nil

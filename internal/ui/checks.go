@@ -11,7 +11,7 @@ import (
 // node IDs, which never equal it.
 const foldKey = "checks"
 
-// minBarWidth is the narrowest pane that still draws the CI bar.
+// minBarWidth is the narrowest pane that still draws the condition bar.
 const minBarWidth = 24
 
 // failing reports the states the pane treats as needing attention, the same

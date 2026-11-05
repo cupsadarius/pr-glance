@@ -15,7 +15,7 @@ feature/retry → main
 Overview  Comments  Reviews
 
  Ready to merge
- ━━━━━━━━ ━━━━━━━━ ━━━━━━━━ ━━━━━━━━ ━━━━━━━━
+ ━━━━━━━━ ━━━━━━━━ ━━━━━━━━ ━━━━━━━━ ━━━━━━━
 
  ✓ Checks         2 passed
 ›  ▸ ✓ 2 passed
@@ -116,7 +116,8 @@ Only the up and down arrows are bound; left and right do nothing.
   they apply. The title follows, then a meta line: author · commits · files ·
   `+adds -dels`, with counts from 10,000 shortened (`+25k`, `+1M`), then
   `head → base`. The body opens with the merge verdict GitHub gives
-  (`mergeStateStatus`): Ready to merge, Blocked, or Checking mergeability.
+  (`mergeStateStatus`): Ready to merge, Blocked, Checking mergeability, or
+  Merge state unavailable when GitHub does not answer.
   Five conditions follow: Checks, Approvals, Conversations, Branch and
   Mergeable. A condition is red only when GitHub says it blocks the merge;
   `(not required)` marks one that does not. When GitHub blocks the merge and

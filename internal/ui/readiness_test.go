@@ -79,9 +79,18 @@ func TestReadiness(t *testing.T) {
 		}, verdict: "Checking mergeability…", vlevel: levelUnknown, rows: map[string]row{
 			"Branch": {levelUnknown, "unknown"}, "Mergeable": {levelUnknown, "checking…"}}},
 		{name: "not reported", edit: func(s *model.Snapshot) { s.MergeState, s.Mergeable = "", "" },
-			verdict: "Checking mergeability…", vlevel: levelUnknown},
+			verdict: "Merge state unavailable", vlevel: levelUnknown},
 		{name: "blocked by a rule", edit: func(s *model.Snapshot) { s.MergeState = "BLOCKED" },
 			verdict: "Blocked", vlevel: levelBad, rule: true},
+		{name: "required check still running", edit: func(s *model.Snapshot) {
+			s.MergeState = "BLOCKED"
+			s.Checks = append(s.Checks, model.Check{Name: "e2e", State: model.CheckPending, Required: true})
+			s.CheckCounts.Pending = 1
+		}, verdict: "Blocked", vlevel: levelBad, rows: map[string]row{"Checks": {levelWarn, "1 running · 1 passed"}}},
+		{name: "behind while blocked", edit: func(s *model.Snapshot) { s.MergeState, s.Behind = "BLOCKED", intp(3) },
+			verdict: "Blocked", vlevel: levelBad, rule: true, rows: map[string]row{"Branch": {levelWarn, "3 behind main"}}},
+		{name: "dirty, conflicts not yet known", edit: func(s *model.Snapshot) { s.MergeState, s.Mergeable = "DIRTY", "UNKNOWN" },
+			verdict: "Blocked", vlevel: levelBad},
 		{name: "merged", edit: func(s *model.Snapshot) { s.State, s.MergeState = "MERGED", "UNKNOWN" }, verdict: "Merged", vlevel: levelUnknown},
 		{name: "closed", edit: func(s *model.Snapshot) { s.State = "CLOSED" }, verdict: "Closed", vlevel: levelUnknown},
 		{name: "draft", edit: func(s *model.Snapshot) { s.Draft, s.MergeState = true, "DRAFT" }, verdict: "Draft", vlevel: levelUnknown},

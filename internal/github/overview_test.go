@@ -177,3 +177,42 @@ func TestChecksCarryRequiredAndTime(t *testing.T) {
 		t.Fatalf("checks query does not ask which checks are required: %v", r.calls[1])
 	}
 }
+
+func TestOverviewErrorKeepsTheSnapshot(t *testing.T) {
+	r := &fixtureRunner{t: t, overview: `{"errors":[{"type":"FORBIDDEN","message":"Resource not accessible by integration"}],"data":{"node":null}}`,
+		replies: []reply{{out: discovery("github.com", "o/r", "OPEN", false)}, {out: page(`[{"__typename":"CheckRun","name":"e2e","status":"COMPLETED","conclusion":"SUCCESS"}]`, false, "")}}}
+	got, err := (Client{Runner: r}).Snapshot(context.Background(), model.Source{CWD: "/source", Branch: "topic"})
+	if err != nil {
+		t.Fatalf("an overview error must not fail the summary: %v", err)
+	}
+	if got.PR == nil || len(got.Checks) != 1 || got.MergeState != "" {
+		t.Fatalf("got PR %v, %d checks, merge state %q", got.PR, len(got.Checks), got.MergeState)
+	}
+}
+
+func TestOpenThreadsGroupByFile(t *testing.T) {
+	thread := func(path, url string) string {
+		return `{"isResolved":false,"path":"` + path + `","line":1,"comments":{"nodes":[{"author":{"login":"x"},"body":"b","url":"` + url + `"}]}}`
+	}
+	fixture := `{"data":{"node":{"mergeStateStatus":"CLEAN","reviewThreads":{"totalCount":3,"nodes":[` +
+		thread("a.go", "1") + `,` + thread("b.go", "2") + `,` + thread("a.go", "3") + `]}}}}`
+	r := &fixtureRunner{t: t, overview: fixture, replies: []reply{{out: discovery("github.com", "o/r", "OPEN", false)}, {out: page(`[]`, false, "")}}}
+	got, err := (Client{Runner: r}).Snapshot(context.Background(), model.Source{CWD: "/source", Branch: "topic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var urls []string
+	for _, th := range got.OpenThreads {
+		urls = append(urls, th.URL)
+	}
+	if strings.Join(urls, " ") != "1 3 2" {
+		t.Fatalf("thread order = %v, want threads of one file together, files in first-seen order", urls)
+	}
+}
+
+func TestActivitySkipsEventsWithoutATime(t *testing.T) {
+	pending := []timelineNode{{Type: "PullRequestReview", Author: login{"ana"}, State: "PENDING"}}
+	if got := activity(pending, nil); len(got) != 0 {
+		t.Fatalf("an event without a time has no place in the feed: %+v", got)
+	}
+}

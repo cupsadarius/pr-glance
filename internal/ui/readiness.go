@@ -52,17 +52,32 @@ func readiness(s model.Snapshot) (verdict, []condition) {
 		v = verdict{text: "Ready to merge", level: levelOK}
 	case s.MergeState == "UNSTABLE":
 		v = verdict{text: "Ready to merge", level: levelOK, note: "non-required checks fail"}
-	case s.MergeState == "BLOCKED" || s.MergeState == "BEHIND" || s.MergeState == "DIRTY":
-		v = verdict{text: "Blocked", level: levelBad, rule: true}
-		for _, r := range rows {
-			if r.level == levelBad {
-				v.rule = false
-			}
-		}
+	case s.MergeState == "BLOCKED":
+		v = verdict{text: "Blocked", level: levelBad, rule: !explained(s, rows)}
+	case s.MergeState == "BEHIND" || s.MergeState == "DIRTY":
+		v = verdict{text: "Blocked", level: levelBad}
+	case s.MergeState == "":
+		v = verdict{text: "Merge state unavailable"}
 	default:
 		v = verdict{text: "Checking mergeability…"}
 	}
 	return v, rows
+}
+
+// explained reports whether a red row or a running required check accounts
+// for a block.
+func explained(s model.Snapshot, rows []condition) bool {
+	for _, r := range rows {
+		if r.level == levelBad {
+			return true
+		}
+	}
+	for _, c := range s.Checks {
+		if c.Required && c.State == model.CheckPending {
+			return true
+		}
+	}
+	return false
 }
 
 func checksCondition(s model.Snapshot) condition {
@@ -147,8 +162,10 @@ func branchCondition(s model.Snapshot, base string) condition {
 		return condition{name: "Branch", detail: "up to date with " + base, level: levelOK}
 	case s.MergeState == "BEHIND":
 		return condition{name: "Branch", detail: fmt.Sprintf("%d behind %s", *s.Behind, base), level: levelBad}
-	default:
+	case s.MergeState == "CLEAN" || s.MergeState == "UNSTABLE" || s.MergeState == "HAS_HOOKS":
 		return condition{name: "Branch", detail: fmt.Sprintf("%d behind %s", *s.Behind, base) + notRequired, level: levelWarn}
+	default: // GitHub reports BLOCKED before BEHIND, so this one may still be required
+		return condition{name: "Branch", detail: fmt.Sprintf("%d behind %s", *s.Behind, base), level: levelWarn}
 	}
 }
 

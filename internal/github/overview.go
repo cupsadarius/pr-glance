@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -130,9 +131,21 @@ func (c Client) overview(ctx context.Context, cwd, host, id string, s *model.Sna
 		}
 		s.OpenThreads = append(s.OpenThreads, summary)
 	}
+	groupByFile(s.OpenThreads)
 	s.Reviewers = reviewers(n.ReviewRequests.Nodes, n.LatestReviews.Nodes, s.Author)
 	s.Activity = activity(n.TimelineItems.Nodes, s.Checks)
 	return nil
+}
+
+// groupByFile keeps the threads of one file together, files in first-seen order.
+func groupByFile(threads []model.ThreadSummary) {
+	first := map[string]int{}
+	for i, t := range threads {
+		if _, ok := first[t.Path]; !ok {
+			first[t.Path] = i
+		}
+	}
+	sort.SliceStable(threads, func(i, j int) bool { return first[threads[i].Path] < first[threads[j].Path] })
 }
 
 var reviewerRank = map[string]int{"CHANGES_REQUESTED": 0, "REQUESTED": 1, "APPROVED": 2, "COMMENTED": 3, "DISMISSED": 4}
@@ -226,6 +239,7 @@ func activity(timeline []timelineNode, checks []model.Check) []model.Event {
 			out = append(out, model.Event{At: c.At, Kind: model.EventCheckFailed, Text: c.Name + " failed", URL: c.URL})
 		}
 	}
+	out = slices.DeleteFunc(out, func(e model.Event) bool { return e.At.IsZero() })
 	sort.SliceStable(out, func(i, j int) bool { return out[i].At.After(out[j].At) })
 	if len(out) > maxEvents {
 		out = out[:maxEvents]
