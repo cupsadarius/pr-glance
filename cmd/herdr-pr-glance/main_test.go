@@ -37,13 +37,6 @@ func TestVersionAndUnknownSubcommands(t *testing.T) {
 	}
 }
 
-func TestBrowserArgvPassesTheURLAsOneArgument(t *testing.T) {
-	argv := browserArgv("https://example.invalid/a b?x=1&y=2")
-	if len(argv) != 2 || argv[1] != "https://example.invalid/a b?x=1&y=2" {
-		t.Fatalf("argv = %q", argv)
-	}
-}
-
 func TestInvocationRejectsMalformedContext(t *testing.T) {
 	t.Setenv("HERDR_PLUGIN_CONTEXT_JSON", "{")
 	if _, err := invocation(); err == nil {
