@@ -51,7 +51,7 @@ func TestOverviewAllEmptySections(t *testing.T) {
 			t.Fatalf("missing %q in:\n%s", want, got)
 		}
 	}
-	for _, absent := range []string{"Reviewers", "Threads", "Stack", "Activity"} {
+	for _, absent := range []string{"Reviewers", "Scores", "Threads", "Stack", "Activity"} {
 		if strings.Contains(got, absent) {
 			t.Fatalf("empty section %q shown in:\n%s", absent, got)
 		}
@@ -154,5 +154,18 @@ func TestZoomHintHiddenWithoutZoom(t *testing.T) {
 	m.ShowHelp = true
 	if strings.Contains(plainView(m), "zoom") {
 		t.Fatal("help lists zoom without a zoom action")
+	}
+}
+
+func TestScoreRows(t *testing.T) {
+	m, now := viewHarness()
+	readyFixture(m, *now)
+	m.Snapshot.Scores = []model.Score{{Author: "greptile-apps", Value: 4, Max: 5, At: now.Add(-3 * time.Hour), URL: "https://s/1"}}
+	it := itemWithURL(t, m, "https://s/1")
+	if line := ansi.Strip(strings.Join(it.lines, "")); !strings.Contains(line, "@greptile-apps") || !strings.Contains(line, "4/5") || !strings.Contains(line, "3h") {
+		t.Fatalf("score row = %q", line)
+	}
+	if !strings.Contains(plainView(m), "Scores") {
+		t.Fatal("Scores section missing")
 	}
 }

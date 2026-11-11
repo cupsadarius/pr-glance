@@ -41,6 +41,10 @@ Overview  Comments  Reviews
 r refresh o browser z zoom ? help q close
 ```
 
+When a comment or review holds a merge score, such as `Merge confidence: 8/10`
+or `Confidence Score: 4/5`, the Overview adds a Scores section with the latest
+score of each author.
+
 The mockup is the Overview rendered in a 44-column pane. Content wraps to the
 pane width and follows terminal resizing.
 

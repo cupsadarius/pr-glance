@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -214,5 +215,25 @@ func TestActivitySkipsEventsWithoutATime(t *testing.T) {
 	pending := []timelineNode{{Type: "PullRequestReview", Author: login{"ana"}, State: "PENDING"}}
 	if got := activity(pending, nil); len(got) != 0 {
 		t.Fatalf("an event without a time has no place in the feed: %+v", got)
+	}
+}
+
+func TestScores(t *testing.T) {
+	bodies := []scoreNode{
+		{Author: login{"greptile-apps"}, Body: "<h3>Confidence Score: 4/5</h3>\n[Medium impact]", URL: "g1", UpdatedAt: at("2026-11-10T15:34:00Z")},
+		{Author: login{"darius"}, Body: "Merge confidence: 6/10\nthe judge scored 3/10", URL: "d1", UpdatedAt: at("2026-11-10T10:00:00Z")},
+		{Author: login{"darius"}, Body: "**Merge confidence:** 8/10\nReviewer regrade: the judge scored 6/10", URL: "d2", UpdatedAt: at("2026-11-10T16:38:00Z")},
+		{Author: login{"darius"}, Body: "The score and detail are in the sticky.", URL: "d3", UpdatedAt: at("2026-11-11T09:00:00Z")},
+		{Author: login{"bogdan"}, Body: "fixed, thanks", URL: "b1", UpdatedAt: at("2026-11-10T17:00:00Z")},
+		{Author: login{"bot"}, Body: "Score: 12/10", URL: "x1", UpdatedAt: at("2026-11-10T18:00:00Z")},
+	}
+	got := scores(bodies)
+	var rows []string
+	for _, s := range got {
+		rows = append(rows, fmt.Sprintf("%s:%g/%g:%s", s.Author, s.Value, s.Max, s.URL))
+	}
+	want := "darius:8/10:d2 greptile-apps:4/5:g1"
+	if strings.Join(rows, " ") != want {
+		t.Fatalf("scores = %s\nwant     %s", strings.Join(rows, " "), want)
 	}
 }

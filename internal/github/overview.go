@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/cupsadarius/pr-glance/model"
@@ -21,6 +23,8 @@ const overviewQuery = `query($id:ID!,$head:String!){node(id:$id){... on PullRequ
 	`mergeable mergeStateStatus baseRef{compare(headRef:$head){behindBy}} ` +
 	`reviewRequests(first:20){nodes{requestedReviewer{__typename ... on User{login} ... on Team{slug} ... on Bot{login} ... on Mannequin{login}}}} ` +
 	`latestReviews(first:20){nodes{author{login} state submittedAt url}} ` +
+	`comments(last:50){nodes{author{login} body url updatedAt}} ` +
+	`reviews(last:50){nodes{author{login} body url updatedAt}} ` +
 	`reviewThreads(first:100){totalCount nodes{isResolved path line comments(first:1){nodes{author{login} body url}}}} ` +
 	`timelineItems(last:30,itemTypes:[PULL_REQUEST_COMMIT,PULL_REQUEST_REVIEW,ISSUE_COMMENT,REVIEW_REQUESTED_EVENT,READY_FOR_REVIEW_EVENT,MERGED_EVENT,CLOSED_EVENT,REOPENED_EVENT]){nodes{__typename ` +
 	`... on PullRequestCommit{url commit{committedDate author{user{login}}}} ` +
@@ -95,6 +99,15 @@ type overviewNode struct {
 		}
 	}
 	TimelineItems struct{ Nodes []timelineNode }
+	Comments      struct{ Nodes []scoreNode }
+	Reviews       struct{ Nodes []scoreNode }
+}
+
+// scoreNode is a comment or review body that can hold a merge score.
+type scoreNode struct {
+	Author    login
+	Body, URL string
+	UpdatedAt time.Time
 }
 
 // overview fills the Overview fields of s. It needs the head commit; without
@@ -134,6 +147,7 @@ func (c Client) overview(ctx context.Context, cwd, host, id string, s *model.Sna
 	groupByFile(s.OpenThreads)
 	s.Reviewers = reviewers(n.ReviewRequests.Nodes, n.LatestReviews.Nodes, s.Author)
 	s.Activity = activity(n.TimelineItems.Nodes, s.Checks)
+	s.Scores = scores(append(n.Comments.Nodes, n.Reviews.Nodes...))
 	return nil
 }
 
@@ -244,5 +258,41 @@ func activity(timeline []timelineNode, checks []model.Check) []model.Event {
 	if len(out) > maxEvents {
 		out = out[:maxEvents]
 	}
+	return out
+}
+
+// scorePattern matches "Merge confidence: 8/10", "Confidence Score: 4/5" and
+// "Score: 7/10", with markdown or HTML markup between the label and the number.
+var scorePattern = regexp.MustCompile(`(?i)\b(?:merge\s+confidence|confidence\s+score|score)\b(?:[\s:*_=]|<[^>]*>)*(\d+(?:\.\d+)?)\s*/\s*(\d+)\b`)
+
+// scores keeps the first score in each body and the newest body per author,
+// newest first. A value above its maximum is not a score.
+func scores(bodies []scoreNode) []model.Score {
+	latest := map[string]model.Score{}
+	for _, b := range bodies {
+		m := scorePattern.FindStringSubmatch(b.Body)
+		if m == nil || b.Author.Login == "" {
+			continue
+		}
+		v, _ := strconv.ParseFloat(m[1], 64)
+		top, _ := strconv.ParseFloat(m[2], 64)
+		if top == 0 || v > top {
+			continue
+		}
+		if old, ok := latest[b.Author.Login]; ok && !b.UpdatedAt.After(old.At) {
+			continue
+		}
+		latest[b.Author.Login] = model.Score{Author: b.Author.Login, Value: v, Max: top, At: b.UpdatedAt, URL: b.URL}
+	}
+	out := make([]model.Score, 0, len(latest))
+	for _, s := range latest {
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].At.Equal(out[j].At) {
+			return out[i].At.After(out[j].At)
+		}
+		return out[i].Author < out[j].Author
+	})
 	return out
 }

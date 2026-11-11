@@ -95,8 +95,10 @@ type Snapshot struct {
 	// mergeStateStatus and mergeable, empty when not reported.
 	HeadOID, MergeState, Mergeable string
 	// Behind is how many commits the head is behind the base; nil when unknown.
-	Behind      *int
-	Reviewers   []Reviewer
+	Behind    *int
+	Reviewers []Reviewer
+	// Scores is the latest merge score each author wrote, newest first.
+	Scores      []Score
 	OpenThreads []ThreadSummary
 	// ThreadCount counts every review thread, resolved ones included.
 	ThreadCount int
@@ -113,6 +115,15 @@ type Reviewer struct {
 	State string // APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, REQUESTED
 	At    time.Time
 	URL   string
+}
+
+// Score is a merge score written in a comment or review body, such as
+// "Merge confidence: 8/10". At is when that body last changed.
+type Score struct {
+	Author     string
+	Value, Max float64
+	At         time.Time
+	URL        string
 }
 
 // ThreadSummary is an unresolved review thread and its first comment. Line is

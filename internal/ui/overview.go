@@ -75,6 +75,12 @@ func (m *Model) overviewBody(w int) ([]string, []bodyItem, []string) {
 			add(bodyItem{lines: []string{m.reviewerRow(r, w)}, url: r.URL})
 		}
 	}
+	if len(m.Snapshot.Scores) > 0 {
+		pending = append(pending, "", sectionRule("Scores", w))
+		for _, s := range m.Snapshot.Scores {
+			add(bodyItem{lines: []string{m.scoreRow(s, w)}, url: s.URL})
+		}
+	}
 	if open := m.Snapshot.OpenThreads; len(open) > 0 {
 		pending = append(pending, "", sectionRule("Threads  "+strconv.Itoa(len(open))+" open", w))
 		for i, t := range open {
@@ -184,6 +190,21 @@ func (m *Model) reviewerRow(r model.Reviewer, w int) string {
 		row = append(row, span{text: "  " + ago(m.now().Sub(r.At)), style: pal.faint})
 	}
 	return truncateSpans(row, w)
+}
+
+// scoreRow colours a score green from 80% of its maximum, yellow from 60%,
+// red below.
+func (m *Model) scoreRow(s model.Score, w int) string {
+	l := levelBad
+	switch r := s.Value / s.Max; {
+	case r >= 0.8:
+		l = levelOK
+	case r >= 0.6:
+		l = levelWarn
+	}
+	value := strconv.FormatFloat(s.Value, 'f', -1, 64) + "/" + strconv.FormatFloat(s.Max, 'f', -1, 64)
+	return truncateSpans([]span{{text: "@" + clean(s.Author), style: pal.cyan}, {text: "  ", style: pal.none},
+		{text: value, style: levelStyle(l).Bold(true)}, {text: "  " + ago(m.now().Sub(s.At)), style: pal.faint}}, w)
 }
 
 // threadSummaryRow is one open thread under its file: the line, the author
